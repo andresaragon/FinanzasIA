@@ -15,13 +15,18 @@ export default function MovimientosScreen() {
   const categorias = useFinanzasStore((s) => s.categorias);
   const errorStore = useFinanzasStore((s) => s.error);
   const agregarGasto = useFinanzasStore((s) => s.agregarGasto);
+  const limpiarError = useFinanzasStore((s) => s.limpiarError);
 
   const [monto, setMonto] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [categoriaId, setCategoriaId] = useState<string | null>(null);
   const [errores, setErrores] = useState<{ monto?: string; descripcion?: string }>({});
+  const [guardando, setGuardando] = useState(false);
 
   const handleGuardar = async () => {
+    if (guardando) return;
+    limpiarError();
+
     const montoNumerico = parsearMonto(monto);
     const resultado = validarGasto({ monto: montoNumerico, descripcion });
 
@@ -31,21 +36,26 @@ export default function MovimientosScreen() {
     }
 
     setErrores({});
-    const guardado = await agregarGasto({
-      monto: montoNumerico!,
-      descripcion: descripcion.trim(),
-      categoriaId,
-      origen: 'texto',
-    });
+    setGuardando(true);
+    try {
+      const guardado = await agregarGasto({
+        monto: montoNumerico!,
+        descripcion: descripcion.trim(),
+        categoriaId,
+        origen: 'texto',
+      });
 
-    if (guardado) {
-      setMonto('');
-      setDescripcion('');
-      setCategoriaId(null);
+      if (guardado) {
+        setMonto('');
+        setDescripcion('');
+        setCategoriaId(null);
+      }
+    } finally {
+      setGuardando(false);
     }
   };
 
-  const renderHeader = () => (
+  const headerElement = (
     <View style={styles.formulario}>
       <Text style={styles.titulo}>Nuevo gasto</Text>
 
@@ -123,7 +133,12 @@ export default function MovimientosScreen() {
         </Text>
       ) : null}
 
-      <Pressable testID="btn-guardar" onPress={handleGuardar} style={styles.btnGuardar}>
+      <Pressable
+        testID="btn-guardar"
+        onPress={handleGuardar}
+        disabled={guardando}
+        style={[styles.btnGuardar, guardando && styles.btnGuardarDeshabilitado]}
+      >
         <Text style={styles.btnGuardarTexto}>Guardar</Text>
       </Pressable>
 
@@ -138,7 +153,7 @@ export default function MovimientosScreen() {
       style={styles.container}
       data={gastos}
       keyExtractor={(g) => g.id}
-      ListHeaderComponent={renderHeader}
+      ListHeaderComponent={headerElement}
       ListEmptyComponent={<Text style={styles.hint}>Sin movimientos todavía.</Text>}
       renderItem={({ item }) => (
         <View style={styles.fila}>
@@ -201,6 +216,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 16,
+  },
+  btnGuardarDeshabilitado: {
+    opacity: 0.6,
   },
   btnGuardarTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
   hint: { color: '#999', marginTop: 12 },
