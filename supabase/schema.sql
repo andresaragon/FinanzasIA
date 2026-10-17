@@ -64,3 +64,21 @@ create policy "correcciones propias" on user_corrections
 
 create policy "presupuestos propios" on budgets
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Siembra idempotente de categorías globales por defecto
+insert into categories (nombre, icono, user_id)
+select c.nombre, c.icono, null
+from (
+  values
+    ('Alimentación', 'utensils'),
+    ('Transporte', 'car'),
+    ('Vivienda', 'home'),
+    ('Servicios', 'bolt'),
+    ('Salud', 'heart'),
+    ('Educación', 'book'),
+    ('Entretenimiento', 'film'),
+    ('Otros', 'ellipsis')
+) as c(nombre, icono)
+where not exists (
+  select 1 from categories where categories.nombre = c.nombre and categories.user_id is null
+);

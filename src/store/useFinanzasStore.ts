@@ -6,6 +6,7 @@ import type { Categoria, Gasto, InsightIA, Presupuesto } from '../types';
 type FinanzasState = {
   session: Session | null;
   cargando: boolean;
+  error: string | null;
   gastos: Gasto[];
   categorias: Categoria[];
   presupuestos: Presupuesto[];
@@ -14,12 +15,14 @@ type FinanzasState = {
   inicializarSesion: () => Promise<void>;
   cerrarSesion: () => Promise<void>;
   cargar: () => Promise<void>;
-  agregarGasto: (gasto: Omit<Gasto, 'id' | 'userId' | 'creadoEn'>) => Promise<void>;
+  agregarGasto: (gasto: Omit<Gasto, 'id' | 'userId' | 'creadoEn'>) => Promise<boolean>;
+  limpiarError: () => void;
 };
 
 export const useFinanzasStore = create<FinanzasState>((set, get) => ({
   session: null,
   cargando: false,
+  error: null,
   gastos: [],
   categorias: [],
   presupuestos: [],
@@ -35,7 +38,18 @@ export const useFinanzasStore = create<FinanzasState>((set, get) => ({
 
   cerrarSesion: async () => {
     await supabase.auth.signOut();
-    set({ session: null, gastos: [], categorias: [], presupuestos: [], insightIA: null });
+    set({
+      session: null,
+      gastos: [],
+      categorias: [],
+      presupuestos: [],
+      insightIA: null,
+      error: null,
+    });
+  },
+
+  limpiarError: () => {
+    set({ error: null });
   },
 
   cargar: async () => {
@@ -59,7 +73,7 @@ export const useFinanzasStore = create<FinanzasState>((set, get) => ({
 
   agregarGasto: async (gasto) => {
     const { session } = get();
-    if (!session) return;
+    if (!session) return false;
 
     const { error } = await supabase.from('expenses').insert({
       user_id: session.user.id,
@@ -69,9 +83,14 @@ export const useFinanzasStore = create<FinanzasState>((set, get) => ({
       origen: gasto.origen,
     });
 
-    if (!error) {
-      await get().cargar();
+    if (error) {
+      set({ error: error.message });
+      return false;
     }
+
+    set({ error: null });
+    await get().cargar();
+    return true;
   },
 }));
 
@@ -79,7 +98,7 @@ function mapGasto(row: any): Gasto {
   return {
     id: row.id,
     userId: row.user_id,
-    monto: row.monto,
+    monto: Number(row.monto),
     descripcion: row.descripcion,
     categoriaId: row.categoria_id,
     origen: row.origen,
@@ -92,5 +111,10 @@ function mapCategoria(row: any): Categoria {
 }
 
 function mapPresupuesto(row: any): Presupuesto {
-  return { id: row.id, categoriaId: row.categoria_id, montoLimite: row.monto_limite, mes: row.mes };
+  return {
+    id: row.id,
+    categoriaId: row.categoria_id,
+    montoLimite: Number(row.monto_limite),
+    mes: row.mes,
+  };
 }
