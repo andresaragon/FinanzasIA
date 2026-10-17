@@ -1,31 +1,44 @@
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFinanzasStore } from '../store/useFinanzasStore';
+import { formatearCOP } from '../lib/formato';
+import { mesBogota, resumenMensual } from '../lib/resumen';
 
 export default function TableroScreen() {
-  const { gastos, cargando, cargar } = useFinanzasStore();
+  const { gastos, categorias, cargando, cargar } = useFinanzasStore();
 
   useEffect(() => {
     cargar();
   }, []);
 
-  const total = gastos.reduce((acc, g) => acc + g.monto, 0);
+  const mesActual = mesBogota(new Date().toISOString());
+  const resumen = resumenMensual(gastos, categorias, mesActual);
+  const sinGastosEnMes = resumen.porCategoria.length === 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.label}>Total registrado</Text>
-      <Text style={styles.total}>{total.toFixed(2)}</Text>
+      <Text style={styles.label}>Total del mes</Text>
+      <Text testID="total-mes" style={styles.total}>
+        {formatearCOP(resumen.total)}
+      </Text>
+
       {cargando && <Text style={styles.hint}>Cargando…</Text>}
-      {!cargando && gastos.length === 0 && (
+
+      {!cargando && sinGastosEnMes && (
         <Text style={styles.hint}>Aún no hay gastos registrados.</Text>
       )}
+
       <View style={styles.lista}>
-        {gastos.slice(0, 5).map((g) => (
-          <View key={g.id} style={styles.fila}>
-            <Text style={styles.filaTexto}>{g.descripcion}</Text>
-            <Text style={styles.filaMonto}>{g.monto.toFixed(2)}</Text>
-          </View>
-        ))}
+        {resumen.porCategoria.map((fila) => {
+          const testId = fila.categoriaId ? `cat-${fila.categoriaId}` : 'cat-sin-categoria';
+          return (
+            <View key={fila.categoriaId ?? 'sin-categoria'} style={styles.fila}>
+              <Text testID={testId} style={styles.filaTexto}>
+                {`${fila.nombre} ${formatearCOP(fila.total)}`}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -46,5 +59,4 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   filaTexto: { fontSize: 15 },
-  filaMonto: { fontSize: 15, fontWeight: '600' },
 });
